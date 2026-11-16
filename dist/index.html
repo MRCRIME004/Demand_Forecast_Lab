@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Upload daily demand data, explore STL decomposition, stationarity (ADF/KPSS), ACF/PACF, prepare missing values and outliers, and compare 10 forecasting models in clean charts with optional service-level EOQ planning.">
+  <title>Demand Forecast Lab</title><link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="final.css">
+<link rel="stylesheet" href="v2.css">
+<link rel="icon" href="logo.png">
+</head>
+<body>
+<header class="topbar">
+  <div class="identity"><img src="logo.png" alt="NIT Warangal" width="44" height="48"><div><h1>Demand Forecast Lab</h1><p>Data Science in Manufacturing · NIT Warangal</p></div></div>
+  <div class="stepper-Header" aria-label="Workflow steps">
+    <span class="step-badge active" id="step-badge-1">1. Upload</span>
+    <span class="step-badge" id="step-badge-2">2. Data Type &amp; Settings</span>
+    <span class="step-badge" id="step-badge-3">3. Run</span>
+    <span class="step-badge" id="step-badge-4">4. Forecast Report</span>
+    <span class="step-badge" id="step-badge-5">5. EOQ &amp; Purchase Plan</span>
+  </div>
+  <div class="topbar-right">
+    <button type="button" id="topbar-settings-btn" class="secondary small-btn" aria-expanded="true">⚙ Hide settings</button>
+    <div class="author">P. Nagendra Reddy <span>26MEM3R04 · CIM</span></div>
+  </div>
+</header>
+<div class="workspace" id="workspace">
+<aside aria-label="Analysis inputs" id="settings-sidebar">
+  <div class="sidebar-header-row">
+    <span class="section-label">WORKSPACE INPUTS</span>
+    <button type="button" id="settings-toggle" class="settings-toggle" aria-expanded="true">Hide settings</button>
+  </div>
+
+  <div class="sidebar-step">
+    <div class="section-label">STEP 01 / UPLOAD DATA</div>
+    <h2>1. Your time-series data</h2>
+    <label class="upload" id="dropzone" for="file"><span class="upload-icon" aria-hidden="true">↑</span><strong>Choose a CSV or TSV file</strong><span>or drop it here · up to 50 MB</span><input id="file" type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values"></label>
+    <div class="sample-actions"><button id="sample" type="button" class="text-button">Load project dataset (sample.csv)</button><a href="template.csv" download>CSV template</a></div>
+    <p id="file-info" class="file-info">Loading the project dataset…</p>
+    <p id="large-file-warning" class="notice compact-notice" role="status" hidden></p>
+
+    <div class="sub-grid-2">
+      <div>
+        <label for="demand-column">Value / demand col</label>
+        <select id="demand-column"></select>
+      </div>
+      <div>
+        <label for="calendar-column">Weekday / date col</label>
+        <select id="calendar-column"></select>
+      </div>
+    </div>
+    <div class="sub-grid-2">
+      <div>
+        <label for="calendar-type" id="calendar-type-label">Calendar format</label>
+        <select id="calendar-type"><option value="weekday">Weekday (Mon–Fri / 2–6)</option><option value="date">Date (YYYY-MM-DD)</option></select>
+      </div>
+      <div>
+        <label for="calendar-mode">Operating calendar</label>
+        <select id="calendar-mode"><option value="weekdays">Monday–Friday</option><option value="all_days">All seven days</option></select>
+      </div>
+    </div>
+    <div class="sub-grid-2">
+      <div>
+        <label for="start-weekday">First weekday <small>if generated</small></label>
+        <select id="start-weekday"><option value="2">Monday</option><option value="3">Tuesday</option><option value="4">Wednesday</option><option value="5">Thursday</option><option value="6">Friday</option><option value="7">Saturday</option><option value="8">Sunday</option></select>
+      </div>
+    </div>
+    <p class="hint">40–2,500 rows per analysis. Edit cells anytime in the <strong>Data</strong> tab.</p>
+  </div>
+
+  <div class="sidebar-step" id="datatype-step-box">
+    <div class="section-label">STEP 02 / CORE SETTINGS</div>
+    <h2>2. Data type, unit &amp; horizon</h2>
+    <p id="datatype-prompt" class="dtype-notice">Confirm what type of data you loaded and its unit so every chart, table, and explanation uses your exact terms.</p>
+
+    <label for="data-type">What type of data is this?</label>
+    <select id="data-type">
+      <option value="Orders" selected>Orders</option>
+      <option value="Sales">Sales</option>
+      <option value="Production quantity">Production quantity</option>
+      <option value="Electricity or energy use">Electricity or energy use</option>
+      <option value="Website traffic">Website traffic</option>
+      <option value="Custom">Custom (type your own)</option>
+    </select>
+    <div id="custom-type-wrap" hidden>
+      <label for="custom-data-type">Custom data type name</label>
+      <input id="custom-data-type" type="text" placeholder="e.g. Patient visits, Water usage">
+    </div>
+
+    <div class="sub-grid-2">
+      <div>
+        <label for="unit-name">Unit name</label>
+        <input id="unit-name" type="text" value="orders" placeholder="e.g. units, orders">
+      </div>
+      <div>
+        <label for="horizon">Forecast horizon <small>days</small></label>
+        <input id="horizon" type="number" min="5" max="120" value="60">
+      </div>
+    </div>
+    <div class="unit-chips" aria-label="Quick unit suggestions">
+      <button type="button" class="chip" data-unit="units">units</button>
+      <button type="button" class="chip" data-unit="orders">orders</button>
+      <button type="button" class="chip" data-unit="kWh">kWh</button>
+      <button type="button" class="chip" data-unit="kg">kg</button>
+      <button type="button" class="chip" data-unit="visits">visits</button>
+    </div>
+
+    <div class="fast-mode-box">
+      <label class="checkbox-row" for="fast-mode">
+        <input id="fast-mode" type="checkbox">
+        <span>Fast mode (skip tuning grids, SARIMA &amp; extra tables)</span>
+      </label>
+    </div>
+
+    <details class="advanced-settings-drawer" id="advanced-settings-drawer">
+      <summary>Advanced data prep &amp; tuning settings <span>Defaults active</span></summary>
+      <div class="advanced-drawer-body">
+        <div class="sub-grid-2">
+          <div>
+            <label for="cv-folds">CV folds (3..10)</label>
+            <input id="cv-folds" type="number" min="3" max="10" step="1" value="5">
+          </div>
+          <div>
+            <label for="min-interval-errors">Min interval errors</label>
+            <input id="min-interval-errors" type="number" min="5" max="500" step="1" value="30">
+          </div>
+        </div>
+
+        <label for="missing-treatment">Blank demand values <small>how to fill empty cells</small></label>
+        <select id="missing-treatment">
+          <option value="interpolate" selected>Linear interpolation (causal)</option>
+          <option value="weekday_median">Weekday median (causal)</option>
+          <option value="reject">Reject file if blanks exist</option>
+        </select>
+
+        <div class="sub-grid-2">
+          <div>
+            <label for="max-missing-pct">Max blank share (%)</label>
+            <input id="max-missing-pct" type="number" min="0" max="50" step="0.5" value="10">
+          </div>
+          <div>
+            <label for="outlier-threshold">Outlier z-threshold</label>
+            <input id="outlier-threshold" type="number" min="1.5" max="10" step="0.1" value="3.2">
+          </div>
+        </div>
+
+        <label for="outlier-treatment">Causal residual outliers <small>default is keep</small></label>
+        <select id="outlier-treatment">
+          <option value="keep" selected>Keep all observations (flag only)</option>
+          <option value="cap">Cap at robust z-score threshold</option>
+          <option value="replace">Replace with causal fitted value</option>
+        </select>
+
+        <div class="sub-grid-2">
+          <div>
+            <label for="hw-seasonal">Holt-Winters seasonal</label>
+            <select id="hw-seasonal">
+              <option value="auto" selected>Auto (validation)</option>
+              <option value="add">Additive</option>
+              <option value="mul">Multiplicative</option>
+            </select>
+          </div>
+          <div>
+            <label for="hw-damped">Damped trend</label>
+            <select id="hw-damped">
+              <option value="auto" selected>Auto (validation)</option>
+              <option value="false">Undamped</option>
+              <option value="true">Damped</option>
+            </select>
+          </div>
+        </div>
+
+        <label for="fast-mode-threshold">Auto-enable Fast mode above row count</label>
+        <input id="fast-mode-threshold" type="number" min="40" max="10000" step="10" value="500">
+      </div>
+    </details>
+  </div>
+
+  <div class="run-area">
+    <div class="section-label">STEP 03 / GENERATE REPORT</div>
+    <button id="run" type="button" class="primary" disabled>Generate Part 1 Forecast Report <span aria-hidden="true">↗</span></button>
+    <button id="cancel" type="button" class="text-button" hidden>Cancel browser run</button>
+    <div id="progress-wrap" class="progress-wrap" hidden>
+      <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-track">
+        <div id="progress-bar" class="progress-fill"></div>
+      </div>
+      <div id="progress-step" class="progress-label"></div>
+    </div>
+    <p id="status" role="status" aria-live="polite">Preparing your workspace…</p>
+  </div>
+</aside>
+
+<main>
+  <div class="main-toolbar">
+    <nav aria-label="Workspace views" role="tablist">
+      <button role="tab" aria-selected="true" class="active" data-view="overview">Part 1: Report</button>
+      <button role="tab" aria-selected="false" data-view="graphs">All Graphs</button>
+      <button role="tab" aria-selected="false" data-view="purchase">Part 2: EOQ &amp; Purchase Plan</button>
+      <button role="tab" aria-selected="false" data-view="tables">Tables</button>
+      <button role="tab" aria-selected="false" data-view="data">Data</button>
+      <button role="tab" aria-selected="false" data-view="methods">Methods</button>
+      <button role="tab" aria-selected="false" data-view="howto">How to use</button>
+    </nav>
+    <div class="toolbar-actions">
+      <button id="download-all" type="button" class="secondary" disabled>Download results .zip</button>
+    </div>
+  </div>
+
+  <div id="error" class="error" role="alert" hidden></div>
+  <div id="dirty" class="notice dirty-banner" hidden>
+    <span>Data or settings were updated. Your previous report is still shown below until you refresh.</span>
+    <button type="button" id="dirty-rerun-btn" class="secondary small-btn">Update Report Now ↻</button>
+  </div>
+
+  <section id="overview" class="view" role="tabpanel">
+    <div id="initial">
+      <div class="section-label">INPUT DATA</div>
+      <h2 id="preview-heading">A new forecast starts with your data.</h2>
+      <p>Step 1: Upload a CSV/TSV (or use the project sample). Step 2: Confirm your data type, unit, and forecast horizon in setup. Step 3: Click <strong>Generate Part 1 Forecast Report</strong> to compare up to 10 forecasting models in clean, readable charts with plain-language reading guides below every graph.</p>
+      <div id="preview-plot" aria-label="Loaded dataset summary"></div>
+      <div class="intro-bottom"><span>Up to 10 forecasting methods compared</span><span>Appropriate chart forms + 4-part reading guides</span><span>Optional Part 2 EOQ &amp; purchase schedule</span></div>
+      <p class="hint">Open setup to confirm your data and generate the forecast report.</p>
+    </div>
+
+    <div id="result-overview" hidden>
+      <div id="fast-mode-banner" class="notice" role="status" hidden></div>
+      <div id="model-warning" class="notice" role="alert" hidden></div>
+      <div id="cv-warning" class="notice" role="status" hidden></div>
+
+      <div class="result-heading">
+        <div>
+          <div class="section-label" id="report-kicker">PART 1 · FORECAST REPORT — SELECTED ON VALIDATION</div>
+          <h2 id="selected-model"></h2>
+          <p id="result-description"></p>
+          <p id="model-comparison-note" class="model-note"></p>
+        </div>
+        <span id="run-time" class="hint"></span>
+      </div>
+
+      <div id="executive-summary-card" class="exec-summary-card"></div>
+
+      <div class="metrics">
+        <div class="metric-card accent-blue"><div class="metric-top"><span>Final test MAE</span><em id="badge-mae" class="metric-pill"></em></div><strong id="metric-mae"></strong><small>Average daily miss in your unit (lower is better)</small></div>
+        <div class="metric-card accent-purple"><div class="metric-top"><span>Final test RMSE</span><em id="badge-rmse" class="metric-pill"></em></div><strong id="metric-rmse"></strong><small>Penalizes larger single-day misses</small></div>
+        <div class="metric-card accent-amber"><div class="metric-top"><span>Final test WAPE</span><em id="badge-wape" class="metric-pill"></em></div><strong id="metric-wape"></strong><small>Total absolute error ÷ actual total (%)</small></div>
+        <div class="metric-card accent-teal"><div class="metric-top"><span>Mean test bias</span><em id="badge-bias" class="metric-pill"></em></div><strong id="metric-bias"></strong><small id="metric-bias-note">Average (Forecast − Actual) &amp; tracking signal</small></div>
+        <div class="metric-card accent-emerald"><div class="metric-top"><span>Final test MASE</span><em id="badge-mase" class="metric-pill"></em></div><strong id="metric-mase"></strong><small id="metric-mase-note">Below 1.00 beats 1-step naive benchmark</small></div>
+        <div class="metric-card accent-rose"><div class="metric-top"><span>Final test sMAPE</span><em id="badge-smape" class="metric-pill"></em></div><strong id="metric-smape"></strong><small id="metric-smape-note">Symmetric % error (200×|F−A|/(|A|+|F|))</small></div>
+      </div>
+
+      <div id="interval-horizon-note" class="dtype-notice"></div>
+
+      <div class="featured-card" id="featured-card">
+        <div class="plot-heading">
+          <div>
+            <span class="graph-badge">Featured Evaluation Chart</span>
+            <h3 id="featured-title">Actual vs forecast</h3>
+          </div>
+          <div class="card-actions">
+            <button type="button" class="secondary small-btn" id="enlarge-featured">Enlarge ⤢</button>
+            <button type="button" class="text-button" id="download-featured">Download PNG</button>
+          </div>
+        </div>
+        <button id="featured" type="button" class="featured" aria-label="Enlarge final test forecasts"></button>
+        <div id="featured-methods" class="method-buttons" role="group" aria-label="Select forecasting method for featured graph"></div>
+        <div id="featured-interpretation" class="interpretation-box"></div>
+      </div>
+
+      <div id="leaderboard-section" class="leaderboard-card"></div>
+
+      <div id="exploration-prep-panels" class="info-panel-grid"></div>
+      <div id="inline-comparison-tables"></div>
+
+      <div class="report-cards-section">
+        <details class="picker-drawer" id="report-picker"><summary>Choose report charts</summary>
+        <div class="result-heading">
+          <div>
+            <div class="section-label">CHOOSE CHARTS TO VIEW</div>
+            <h3>Part 1 Graphical Report Cards</h3>
+            <p>Each chart has four reading-guide sections; the finding is open by default (<strong>What it is</strong> · <strong>How to see &amp; read it</strong> · <strong>What we understood</strong> · <strong>What to do next</strong>).</p>
+          </div>
+          <div class="selector-actions">
+            <button type="button" id="select-all-overview" class="secondary small-btn">Select all graphs</button>
+          </div>
+        </div>
+        <div id="overview-graph-picker" class="graph-picker" role="group" aria-label="Choose which Part 1 report graphs to display"></div>
+        </details>
+        <div id="overview-gallery" class="gallery single-col-cards"></div>
+      </div>
+
+      <div class="part2-cta-card" id="part2-prompt-card">
+        <div class="section-label">STEP 05 · PART 2 (OPTIONAL)</div>
+        <h3>Do you want to calculate Economic Order Quantity (EOQ) &amp; your purchase schedule?</h3>
+        <p>Calculate your Economic Order Quantity (EOQ), reorder point, whether to order today, and an order schedule using the selected operating calendar. <strong>Target service level is completely optional</strong>—you can calculate EOQ with or without a safety-stock service level.</p>
+        <div class="cta-buttons">
+          <button type="button" id="cta-pp-yes" class="primary cta-btn">Yes — open EOQ &amp; purchase planner</button>
+          <button type="button" id="cta-pp-no" class="secondary cta-btn">No — I only need the forecast report</button>
+        </div>
+        <p id="cta-no-msg" class="hint" hidden>Purchase plan skipped. Your Part 1 forecast forecast report and downloadable CSV tables remain available above.</p>
+      </div>
+
+      <details class="limitations"><summary>Model notes, runtime availability &amp; statistical assumptions</summary><ul id="warnings"></ul><p id="saved-path" class="hint"></p></details>
+    </div>
+  </section>
+
+  <section id="graphs" class="view" role="tabpanel" hidden>
+    <div class="result-heading">
+      <div>
+        <div class="section-label">PART 1 &amp; PART 2 CHART GALLERY</div>
+        <h2>All charts &amp; reading guides</h2>
+        <p>Click any category below to view all charts in that category immediately, or toggle individual charts. Switch between <strong>1-Column Large View</strong> and <strong>2-Column Grid View</strong> anytime.</p>
+      </div>
+      <div class="selector-actions">
+        <button type="button" id="gallery-cols-1" class="secondary small-btn active-view-btn">1-Column Large</button>
+        <button type="button" id="gallery-cols-2" class="secondary small-btn">2-Column Grid</button>
+        <button type="button" id="select-all-graphs" class="secondary small-btn">Select all</button>
+      </div>
+    </div>
+    <div class="graph-search-row">
+      <label for="graph-search">Find a supported graph</label>
+      <input id="graph-search" type="search" placeholder="For example: stationarity, STL, Diebold-Mariano, EOQ, forecast">
+      <p id="graph-search-message" class="hint" role="status"></p>
+    </div>
+    <div id="graph-filters" class="filters" role="group" aria-label="Filter graphs by category"></div>
+    <details class="picker-drawer">
+      <summary>Filter individual graphs in this category</summary>
+      <div id="graph-checkboxes" class="graph-picker" role="group" aria-label="Choose specific graphs to view"></div>
+    </details>
+    <div id="graph-gallery" class="gallery"><p class="empty">Run Part 1 first to generate charts from your data.</p></div>
+  </section>
+
+  <section id="purchase" class="view" role="tabpanel" hidden>
+    <div class="section-label">PART 2 · EOQ &amp; REPLENISHMENT PLANNING</div>
+    <h2>Economic Order Quantity (EOQ) &amp; Purchase Plan</h2>
+    <p id="pp-intro-text">Calculate your optimal order batch size (EOQ), reorder point (ROP), and replenishment schedule using the selected operating calendar. <strong>Service level is optional</strong>: leave it blank (or pick 0% buffer) to compute deterministic EOQ without safety stock, or enter 51%–99.9% to include a safety-stock buffer.</p>
+
+    <div class="pp-question-box" id="pp-question-box" hidden>
+      <h3>Do you want to know what to order and when to order?</h3>
+      <div class="cta-buttons">
+        <button type="button" id="pp-yes-btn" class="primary cta-btn">Yes — enter purchase plan details</button>
+        <button type="button" id="pp-no-btn" class="secondary cta-btn">No — skip purchase plan</button>
+      </div>
+      <p id="pp-declined-note" class="notice" hidden>You chose No. Part 2 is not calculated. Click "Yes" anytime if you change your mind.</p>
+    </div>
+
+    <form id="pp-form" class="pp-form-card" novalidate>
+      <div class="section-label">INVENTORY &amp; COST INPUTS (SERVICE LEVEL IS OPTIONAL)</div>
+      <h3>Enter your stock, lead-time, and cost details</h3>
+      <p class="hint">Fields 1–5 calculate your Economic Order Quantity (EOQ) and replenishment schedule. Field 6 (Target service level %) is <strong>optional</strong>—give a service level if you want a safety-stock buffer, or leave it blank for 0 safety stock.</p>
+      <div id="pp-error" class="error" role="alert" hidden></div>
+      <div class="pp-grid">
+        <div>
+          <label for="pp-start-date">1. Plan start date <small>selected operating calendar (YYYY-MM-DD)</small></label>
+          <input id="pp-start-date" type="date" required>
+        </div>
+        <div>
+          <label for="pp-current-stock">2. Current stock on hand <small id="pp-stock-unit-hint">in your selected unit</small></label>
+          <input id="pp-current-stock" type="number" min="0" step="any" placeholder="e.g. 1200" required>
+        </div>
+        <div>
+          <label for="pp-lead-time">3. Supplier lead time (days) <small>1 to 20 selected operating days</small></label>
+          <input id="pp-lead-time" type="number" min="1" max="20" step="1" placeholder="e.g. 5" required>
+        </div>
+        <div>
+          <label for="pp-order-cost">4. Cost per order <small>fixed cost to place one order</small></label>
+          <input id="pp-order-cost" type="number" min="0.01" step="any" placeholder="e.g. 50" required>
+        </div>
+        <div>
+          <label for="pp-holding-cost">5. Holding cost / unit / year <small>annual cost to store 1 unit</small></label>
+          <input id="pp-holding-cost" type="number" min="0.001" step="any" placeholder="e.g. 2" required>
+        </div>
+        <div>
+          <label for="pp-service">6. Target service level (%) — <strong>Optional</strong> <small>leave blank for 0 safety stock, or enter 51–99.9%</small></label>
+          <input id="pp-service" type="number" min="51" max="99.9" step="0.1" placeholder="Optional (e.g. 95, or leave blank)">
+          <div class="service-chips" aria-label="Quick service level options">
+            <button type="button" class="chip svc-chip" data-svc="">No service level (0 buffer)</button>
+            <button type="button" class="chip svc-chip" data-svc="90">90%</button>
+            <button type="button" class="chip svc-chip" data-svc="95">95%</button>
+            <button type="button" class="chip svc-chip" data-svc="99">99%</button>
+          </div>
+        </div>
+      </div>
+      <div class="pp-submit-row">
+        <button type="submit" id="pp-submit" class="primary cta-btn">Calculate EOQ &amp; purchase plan ↗</button>
+      </div>
+    </form>
+
+    <div id="pp-results" hidden>
+      <div class="pp-dependency-banner" id="pp-disclaimer"></div>
+      <div class="metrics pp-metrics">
+        <div class="metric-card accent-emerald"><span>How much to order (EOQ)</span><strong id="pp-eoq"></strong><small>Economic order batch size (independent of service level)</small></div>
+        <div class="metric-card accent-blue"><span>Safety stock buffer</span><strong id="pp-safety"></strong><small id="pp-safety-note">Buffer for lead-time forecast error</small></div>
+        <div class="metric-card accent-amber"><span>Reorder point (ROP)</span><strong id="pp-reorder"></strong><small id="pp-reorder-note">Place an order when stock hits this level</small></div>
+        <div class="metric-card accent-rose"><span>Est. annual relevant cost</span><strong id="pp-annual-cost"></strong><small id="pp-cost-note">Ordering + cycle &amp; buffer holding</small></div>
+      </div>
+
+      <div class="pp-action-box" id="pp-order-now-box">
+        <div class="section-label">IMMEDIATE DECISION</div>
+        <h3 id="pp-order-now-heading">Whether to order now</h3>
+        <p id="pp-order-now-text"></p>
+        <div class="pp-dates-row">
+          <strong>Next unique order dates in the forecast period:</strong>
+          <div id="pp-order-dates-chips" class="date-chips"></div>
+          <button type="button" id="pp-show-all-dates" class="text-button" hidden>View full schedule</button>
+        </div>
+      </div>
+
+      <div class="pp-schedule-section">
+        <div class="result-heading">
+          <div>
+            <h3>Planned Order Schedule (Selected Operating Calendar)</h3>
+            <p>Projected replenishment orders and expected arrival dates over the forecast horizon starting from your entered stock level.</p>
+          </div>
+          <button type="button" id="download-pp-schedule" class="secondary">Download schedule CSV</button>
+        </div>
+        <div id="pp-schedule-table" class="table-scroll"></div>
+      </div>
+
+      <div class="pp-graphs-section">
+        <h3>Replenishment Simulation &amp; Cost Charts</h3>
+        <p>Each inventory chart below uses your entered parameters and includes a 4-part plain-language reading guide.</p>
+        <div id="pp-gallery" class="gallery single-col-cards"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tables" class="view" role="tabpanel" hidden>
+    <div class="result-heading">
+      <div>
+        <div class="section-label">NUMERICAL RESULTS &amp; EXPORTS</div>
+        <h2>Numerical result tables</h2>
+        <p>Browse category previews below. Expand the sortable table viewer to search every row, sort columns or download CSV. Previews show the first 25 rows; integer columns use whole numbers.</p>
+      </div>
+    </div>
+    <div id="table-category-pills" class="filters" role="group" aria-label="Filter tables by category"></div>
+    <div class="table-controls">
+      <label for="table-select" class="sr-only">Results table</label>
+      <select id="table-select" disabled></select>
+      <input id="table-row-search" type="search" placeholder="Filter rows in this table…" class="table-search-input" disabled>
+      <button id="table-detail-toggle" type="button" class="secondary" disabled>Show full details</button>
+      <button id="download-table" type="button" class="secondary" disabled>Download CSV</button>
+    </div>
+    <div id="table-context" class="table-context" hidden></div>
+    <details id="table-glossary" class="table-glossary" open hidden><summary>Plain-English Column Guide</summary><div id="table-glossary-content"></div></details>
+    <div id="results-table" class="table-scroll"><p class="empty">Run Part 1 to calculate result tables.</p></div>
+    <div id="table-pages" class="pagination"></div>
+  </section>
+
+  <section id="data" class="view" role="tabpanel" hidden>
+    <div class="result-heading">
+      <div>
+        <div class="section-label">INTERACTIVE DATA EDITOR</div>
+        <h2>Review &amp; edit data</h2>
+        <p>Edit values or calendar cells below without losing cursor focus, then click <strong>Apply Edits &amp; Recalculate</strong> to refresh the forecast. Your original uploaded file is always preserved.</p>
+      </div>
+      <div class="data-actions">
+        <button id="apply-data-edits" type="button" class="primary cta-btn" hidden>Apply Edits &amp; Recalculate ↻</button>
+        <button id="add-row" type="button" class="secondary">Add row</button>
+        <button id="download-input" type="button" class="secondary">Download edited CSV</button>
+      </div>
+    </div>
+    <div id="data-health-bar" class="data-health-grid"></div>
+    <div class="data-Subtoolbar">
+      <div class="filters" id="data-row-filters">
+        <button type="button" class="active" data-dfilter="all">All rows</button>
+        <button type="button" data-dfilter="blanks">Blank demand rows only</button>
+      </div>
+      <div class="data-jump-box">
+        <label for="data-jump-input">Jump to observation #:</label>
+        <input id="data-jump-input" type="number" min="1" placeholder="Row #">
+      </div>
+    </div>
+    <p id="data-description" class="hint"></p>
+    <div id="input-table" class="table-scroll"></div>
+    <div id="data-pages" class="pagination"></div>
+  </section>
+
+  <section id="methods" class="view prose" role="tabpanel" hidden>
+    <div class="section-label">ABOUT THE ANALYSIS</div>
+    <h2>Forecasting models, exploration, preparation &amp; statistical methodology</h2><div class="method-info-card"><strong>Display, guided reading and printing</strong><p>Choose Light, Dark or Report in the header; this browser remembers the theme. Show settings opens the setup drawer. After a run, the summary ribbon offers Re-run and Export. Guided mode is off by default; enable it to walk through data, exploration, models, forecast tests and inventory using the existing header steps (or the mobile step menu). Disable it to restore the normal tabs. Each guide opens What we understood; use the section buttons or Show all four to read the rest. Print report opens an A4-friendly Part 1 report with white chart paper and complete guides. Clear data is available in both setup and Data, with an in-page confirmation.</p></div>
+    <p>Every step in Demand Forecast Lab runs on a strict chronological split so zero future information leaks into data preparation, feature engineering, parameter tuning, interval calibration, cross-validation, or model selection.</p>
+
+    <div class="split-visual-card">
+      <h3>Strict Chronological Data Split (Zero Future Leakage)</h3>
+      <div class="split-bar-visual">
+        <div class="split-seg split-train"><strong>1. Training (First 40%)</strong><span>SMA window, SARIMA AIC search, Ridge/RF fit &amp; MASE scaling</span></div>
+        <div class="split-seg split-val"><strong>2. Validation (Next 26.7%)</strong><span>Selects winning model, Top-3 Ensemble &amp; 80%/95% interval quantiles</span></div>
+        <div class="split-seg split-test"><strong>3. Final Test (Last 33.3%)</strong><span>Untouched out-of-sample evaluation &amp; Diebold–Mariano tests</span></div>
+      </div>
+    </div>
+
+    <h3>Data exploration &amp; preparation</h3>
+    <div class="method-cards-grid">
+      <div class="method-info-card"><strong>STL Decomposition (Period = 5 or 7)</strong><p>Splits demand into long-run Trend, selected-calendar weekly Seasonal swing, and irregular Residual line (Graph <code>17_stl_decomposition</code>).</p></div>
+      <div class="method-info-card"><strong>Stationarity Tests (ADF &amp; KPSS)</strong><p>Runs Augmented Dickey–Fuller and KPSS on both level and first difference Δy across chronological lines (Graph <code>18_stationarity</code>).</p></div>
+      <div class="method-info-card"><strong>Distribution &amp; ACF/PACF</strong><p>Reports a frequency bar histogram with mean, median, IQR, and skewness (Graph <code>19_distribution</code>), plus ACF/PACF stems to lag 20 (Graph <code>20_demand_acf_pacf</code>).</p></div>
+      <div class="method-info-card"><strong>Causal Blank &amp; Outlier Prep</strong><p>Fills blank cells causally via linear interpolation or weekday median, and flags one-step residual spikes after a 25-day warm-up without touching future rows.</p></div>
+    </div>
+
+    <div class="method-info-card"><strong>Descriptive supplementary charts</strong><p>CV-by-fold heatmap, demand by week and weekday, actual-versus-forecast scatter, and weekday error-direction counts add context without changing any forecast. The error-direction matrix requires at least 20 final-test rows. The finding section opens first; use the section buttons or Show all four for the complete guide.</p></div><h3>Forecasting models compared (up to 10 models)</h3>
+    <dl class="method-list">
+      <dt>1. Moving average (SMA)</dt><dd>Averages the most recent 3, 5, 7, or 10 observations (window selected on training data only).</dd>
+      <dt>2. Exponential smoothing (SES)</dt><dd>Estimates the level smoothing parameter α and initial level by minimizing one-step squared error on available history.</dd>
+      <dt>3. Weekday regression (OLS)</dt><dd>Fits an intercept, one indicator for each non-reference day in the selected five- or seven-day calendar, and lag-1 demand via ordinary least squares.</dd>
+      <dt>4. Weekday naive</dt><dd>Repeats the most recent observed value from the same weekday as a seasonal benchmark.</dd>
+      <dt>5. Holt’s linear trend</dt><dd>Double exponential smoothing that tracks both an evolving level and an additive linear trend slope.</dd>
+      <dt>6. Ridge regression (richer features + single tuning pass)</dt><dd>Uses lags 1 to 5, rolling means of the last 5 and 10 days, selected-calendar day indicators, and a trend index—plus week-of-month and month-end flag when real calendar dates are provided. Tuned once on the training/validation split over a 10-point log-spaced penalty grid (<code>10^-3</code> to <code>10^3</code>).</dd>
+      <dt>7. Random Forest regression (richer features + single tuning pass)</dt><dd>Uses the same richer feature set, tuned once on the training/validation split over 8 settings (<code>n_estimators ∈ {50, 100}</code>, <code>max_depth ∈ {3, 6}</code>, <code>min_samples_leaf ∈ {1, 3}</code>, <code>random_state = 42</code>). Reports both validation permutation importance and impurity importance (Graph <code>16_feature_importance</code>).</dd>
+      <dt>8. Holt–Winters seasonal (period = 5 or 7, via statsmodels)</dt><dd>Triple exponential smoothing uses the selected operating calendar as its seasonal period, with additive or multiplicative seasonality and an optional damped trend.</dd>
+      <dt>9. SARIMA (period = 5, via statsmodels)</dt><dd>Seasonal ARIMA with period 5 selected once by AIC on the training split over 16 candidates, skipping non-convergent candidates and updating state with new observations without refitting inside a rolling block.</dd>
+      <dt>10. Top-3 validation ensemble</dt><dd>Equal-weight average (1/3 each) of the top 3 individual models selected strictly by validation MAE.</dd>
+    </dl>
+    <p id="engine-explanation">Python runs in a browser worker via <a href="https://pyodide.org/" target="_blank" rel="noopener">Pyodide</a> (v314.0.7, including <code>statsmodels 0.14.6</code> and <code>scikit-learn</code>). Original sample data: <a href="https://archive.ics.uci.edu/dataset/409/daily+demand+forecasting+orders" target="_blank" rel="noopener">UCI Daily Demand Forecasting Orders</a> (CC BY 4.0). Reference: <a href="https://otexts.com/fpp3/" target="_blank" rel="noopener">Forecasting: Principles and Practice</a>.</p>
+  </section>
+
+  <section id="howto" class="view prose" role="tabpanel" hidden>
+    <div class="section-label">USER GUIDE &amp; TROUBLESHOOTING</div>
+    <h2>How to use Demand Forecast Lab</h2>
+    <div class="method-cards-grid">
+      <div class="method-info-card"><strong>Step 1: Load Your CSV/TSV</strong><p>Upload a comma, semicolon, or tab-separated file with 40–2,500 chronological daily rows, select Monday–Friday or all seven days, or click <em>Load project dataset (sample.csv)</em>.</p></div>
+      <div class="method-info-card"><strong>Step 2: Pick Data Type &amp; Unit</strong><p>Select your data type (e.g. Orders, Sales, Production) and unit so all charts and tables avoid duplicate labels.</p></div>
+      <div class="method-info-card"><strong>Step 3: Read the Charts</strong><p>Each chart uses an appropriate visual form and four reading-guide sections: <em>What it is</em>, <em>How to see &amp; read it</em>, <em>What we understood</em>, and <em>What to do next</em>.</p></div>
+      <div class="method-info-card"><strong>Step 4: Optional EOQ &amp; Schedule</strong><p>Open <em>Part 2: EOQ &amp; Purchase Plan</em> to compute EOQ and order dates. Giving a service level (%) is optional—leave it blank for 0 safety stock.</p></div>
+    </div>
+
+    <div class="method-info-card"><strong>Descriptive supplementary charts</strong><p>CV-by-fold heatmap, demand by week and weekday, actual-versus-forecast scatter, and weekday error-direction counts add context without changing any forecast. The error-direction matrix requires at least 20 final-test rows. The finding section opens first; use the section buttons or Show all four for the complete guide.</p></div><div class="method-info-card"><strong>Display, guided reading and printing</strong><p>Choose Light, Dark or Report in the header; this browser remembers the theme. Show settings opens the setup drawer. After a run, the summary ribbon offers Re-run and Export. Guided mode is off by default; enable it to walk through data, exploration, models, forecast tests and inventory using the existing header steps (or the mobile step menu). Disable it to restore the normal tabs. Each guide opens What we understood; use the section buttons or Show all four to read the rest. Print report opens an A4-friendly Part 1 report with white chart paper and complete guides. Clear data is available in both setup and Data, with an in-page confirmation.</p></div><h3>1. Opening the website</h3>
+    <p>Open the deployed website in a modern browser. The first analysis needs an internet connection while the browser loads Pyodide and the scientific Python packages.</p>
+
+    <h3>2. Accepted input data format &amp; blank/outlier handling</h3>
+    <p>Upload a <strong>CSV or TSV file</strong> (up to 50 MB) containing <strong>40 to 2,500 rows</strong> in chronological order. Choose Monday–Friday for operating-day series or All seven days for calendar-daily series.</p>
+    <div class="table-scroll example-table-wrap">
+      <table>
+        <thead><tr><th>Demand</th><th>Weekday</th><th>Notes (how the site reads it)</th></tr></thead>
+        <tbody>
+          <tr><td>285.0</td><td>Monday</td><td>Row 1 — oldest operating day (Mon–Fri name, code 2–6, or YYYY-MM-DD date)</td></tr>
+          <tr><td>230.35</td><td>Tuesday</td><td>Row 2 — consecutive operating day</td></tr>
+          <tr><td></td><td>Wednesday</td><td>Row 3 — optional blank demand value (imputed via interpolation or weekday median, or rejected)</td></tr>
+          <tr><td>222.44</td><td>Thursday</td><td>Row 4 — continues in chronological order up to 2,500 rows</td></tr>
+          <tr><td>211.92</td><td>Friday</td><td>Row 5 — Friday is followed by Monday on the next operating row</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Demand Forecast Lab <span>Project by P. Nagendra Reddy · Guide: Prof. Dr. M. J. Davidson</span></footer>
+</main></div>
+
+<dialog id="graph-dialog">
+  <div class="dialog-toolbar">
+    <h2 id="dialog-title"></h2>
+    <div>
+      <button id="dialog-download" type="button" class="secondary">Download PNG</button>
+      <button id="dialog-close" type="button" class="secondary" aria-label="Close graph">Close ×</button>
+    </div>
+  </div>
+  <img id="dialog-image" alt="">
+  <div id="dialog-methods" class="method-buttons" role="group" aria-label="Select forecasting method in dialog"></div>
+  <div id="dialog-interpretation" class="interpretation-box dialog-interp"></div>
+</dialog>
+<script src="app.js" defer></script>
+<script src="v2.js" defer></script>
+</body></html>
