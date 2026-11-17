@@ -8,6 +8,8 @@ The deployed website is served from the `dist/` directory through Netlify. Pytho
 
 ## Run locally
 
+For a single-file Python launch, download [`Local Website Run/Run_Website.py`](Local%20Website%20Run/Run_Website.py), open it in Python IDLE, and choose **Run Module (F5)**. Python 3.13 is required; on first run it extracts the source beside itself and installs the pinned packages if they are missing. See [`HOW_TO_RUN.txt`](Local%20Website%20Run/HOW_TO_RUN.txt).
+
 From the repository root, start any static file server in `dist/`. For example:
 
 ```powershell

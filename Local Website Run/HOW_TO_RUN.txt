@@ -1,0 +1,14 @@
+Demand Forecasting and Inventory Planning — Local Website Run
+
+1. Install Python 3.13 if it is not installed already.
+2. Open Run_Website.py in your Python app or IDLE and choose Run Module (F5).
+3. On the first run, keep the internet connected while the packages in requirements.txt install.
+4. The website opens in your browser at http://127.0.0.1:8767/ . Keep the Python run window open.
+5. To stop the website, close the Python run window or press Ctrl+C.
+
+The first run extracts the source into the site_files folder beside Run_Website.py. You can open site_files/dist/engine.py for forecasting and inventory calculations, and site_files/dist/js/ for the interface code. Later runs reuse those files. Results from local analyses are saved under site_files/outputs/.
+
+If port 8767 is already in use, run from a terminal instead:
+    python Run_Website.py --port 8771
+
+Only Run_Website.py is needed to start the website; HOW_TO_RUN.txt is for instructions.
