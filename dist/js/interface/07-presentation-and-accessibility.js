@@ -1,0 +1,48 @@
+// Presentation enhancements consume result values only.
+const KEY_CHARTS=new Set(['01_demand','02_evaluation','03_future','06_errors','14_cv_folds','10_policy','11_cost']);
+function chartAlt(f,v){return `${v.title} - ${state.result?.summary.selected_label||'forecast model'} - ${f.chart_type||'chart'}`;}
+function chartCountText(r){const n=r.figures.filter(f=>f.part!==2||r.purchase_plan).length;return r.purchase_plan?`${n} charts ready`:`${n} charts ready (Part 2 adds 3 inventory charts)`;}
+function enhancePresentation(r){
+ const s=r.summary,e=s.executive_summary,u=s.unit_name;
+ const dayLabel=s.parameters?.calendar_mode==='all_days'?'calendar days':'operating days';
+ const answer=$('executive-summary-card');answer.replaceChildren(el('span','FORECAST ANSWER','eyebrow'),el('h2',s.selected_label),el('p',`Next 5 ${dayLabel}: ${fmt(e.next_5_days_total)} ${u} total · ${fmt(e.next_5_days_mean)} ${u}/day. Typical final-test error: ${fmt(s.test_metrics.MAE)} ${u}.`));
+ if(!$('more-metrics')){const d=el('details');d.id='more-metrics';d.append(el('summary','More metrics'));const grid=el('div',undefined,'metrics');for(const id of ['metric-rmse','metric-bias','metric-mase','metric-smape'])grid.append($(id).closest('.metric-card'));d.append(grid);document.querySelector('#result-overview .metrics').after(d);}
+ for(const id of ['primary-next5','primary-eoq'])$(id)?.remove();
+ const grid=document.querySelector('#result-overview .metrics');
+ const add=(id,label,value)=>{const x=el('div',undefined,'metric-card');x.id=id;x.append(el('span',label),el('strong',value));grid.append(x);};
+ add('primary-next5',`Next 5 ${dayLabel}`,`${fmt(e.next_5_days_total)} ${u}`);if(r.purchase_plan)add('primary-eoq','Base EOQ',`${fmt(r.purchase_plan.EOQ)} ${u}`);
+ if(!$('secondary-report')){const d=el('details');d.id='secondary-report';d.append(el('summary','Model leaderboard and analysis details'));for(const id of ['leaderboard-section','exploration-prep-panels','inline-comparison-tables'])if($(id))d.append($(id));$('more-metrics').after(d);}
+ if(!$('report-notes')){const d=el('details');d.id='report-notes';d.append(el('summary','Notes'));for(const id of ['model-warning','cv-warning','model-comparison-note','interval-note'])if($(id))d.append($(id));$('more-metrics').after(d);}
+ $('result-overview').prepend(answer); for(const id of ['fast-mode-banner','interval-horizon-note'])if($(id))$('report-notes').append($(id)); const nd=$('report-notes');nd.querySelector('summary').textContent=`Notes (${s.warnings?.length||0})`;
+ $('graph-search-message').textContent=chartCountText(r);
+ const pp=r.purchase_plan;if(pp){const first=pp.order_schedule?.[0];$('pp-order-now-heading').textContent=pp.order_now?`Order now: Yes · ${fmt(first?.Total_Order_Quantity||pp.EOQ)} ${u} · arrives ${first?.Expected_Receipt_Date||'—'}`:'Order now: No';
+ let note=$('pp-shortage');if(!note){note=el('p');note.id='pp-shortage';$('pp-order-now-box').append(note);}const backlog=pp.order_schedule.find(x=>x.Backlog_At_Trigger>0);note.textContent=backlog?`Starting stock is below the reorder point; the plan shows a shortage of ${fmt(backlog.Backlog_At_Trigger)} ${u} on ${backlog.Order_Date}.`:'';
+ let fast=$('pp-fast-note');if(!fast){fast=el('p',undefined,'hint');fast.id='pp-fast-note';$('pp-order-now-box').append(fast);}fast.textContent=s.fast_mode?'Fast mode skipped model tuning, so EOQ and ROP can differ slightly from a full run.':'';
+ $('pp-results').prepend($('pp-order-now-box'));$('pp-order-now-box').after(document.querySelector('.pp-schedule-section'));let editor=$('pp-input-editor');if(!editor){editor=el('details');editor.id='pp-input-editor';editor.append(el('summary','Edit planning inputs'));$('pp-form').before(editor);editor.append($('pp-form'));}editor.open=false;editor.before($('pp-results'));}
+ if(!pp&&$('pp-input-editor'))$('pp-input-editor').open=true;
+ renderTableCatalog(r);
+}
+function renderTableCatalog(r){
+ let catalog=$('table-catalog');if(!catalog){catalog=el('div');catalog.id='table-catalog';$('tables').append(catalog);}catalog.replaceChildren();
+ const important=new Set(['model_leaderboard','forecast_5_steps','weekly_forecast_summary','inventory_metrics','cv_summary']);
+ for(const t of r.tables.filter(t=>(state.tableCategory==='All'||tableCategoryFor(t.key)===state.tableCategory)&&(!state.catalogSearch||t.label.toLowerCase().includes(state.catalogSearch)))){const d=el('details',undefined,'table-entry');d.open=important.has(t.key);d.append(el('summary',`${t.label} · ${t.rows.length.toLocaleString()} rows`));const draw=()=>{if(d.childElementCount>1)return;const wrap=el('div',undefined,'table-scroll');const tb=el('table'),head=el('tr');t.columns.forEach(c=>head.append(el('th',c.replaceAll('_',' '))));tb.append(head);t.rows.slice(0,25).forEach(row=>{const tr=el('tr');t.columns.forEach(c=>tr.append(el('td',fmtCell(row[c],c))));tb.append(tr);});wrap.append(tb);d.append(wrap,el('p',t.rows.length>25?'Preview: first 25 rows. Use the sortable table viewer or CSV for all rows.':''));};d.ontoggle=()=>{if(d.open)draw();};if(d.open)draw();catalog.append(d);}
+}
+const showAll=el('button','Show all charts','secondary');showAll.id='show-all-charts';showAll.onclick=()=>{state.galleryAll=!state.galleryAll;showAll.textContent=state.galleryAll?'Show key charts':'Show all charts';showAll.setAttribute('aria-pressed',String(state.galleryAll));renderGallery();};$('graph-search').parentElement.before(showAll);
+for(const [label,open] of [['Expand all guides',true],['Collapse all guides',false]]){const b=el('button',label,'secondary');b.onclick=()=>document.querySelectorAll('.guide-part').forEach(d=>d.open=open);showAll.after(b);}
+const clear=el('button','Clear data','secondary');clear.id='clear-data';clear.onclick=()=>{const dialog=el('dialog');dialog.className='clear-confirm';dialog.setAttribute('aria-label','Clear loaded data');dialog.append(el('h2','Clear all loaded observations?'));const cancel=el('button','Keep data','secondary'),yes=el('button','Clear observations','primary');cancel.onclick=()=>{dialog.close();dialog.remove();};yes.onclick=()=>{state.rows=[];state.raw=[];state.name='';state.result=null;state.hasRun=false;state.pendingRun=false;if(state.editTimer){clearTimeout(state.editTimer);state.editTimer=null;}clearResults();renderInput();drawPreview();$('file').value='';$('file-info').textContent='No data loaded.';$('run').disabled=true;$('status').textContent='No data loaded. Load a file or the sample dataset.';dialog.close();dialog.remove();};dialog.append(cancel,yes);document.body.append(dialog);dialog.showModal();};$('download-input').after(clear);
+document.querySelector('[role=tablist]').addEventListener('keydown',event=>{const tabs=[...document.querySelectorAll('[role=tab]')].filter(t=>!t.hidden);const i=tabs.indexOf(document.activeElement);if(i<0)return;let next;if(event.key==='ArrowRight')next=(i+1)%tabs.length;else if(event.key==='ArrowLeft')next=(i+tabs.length-1)%tabs.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=tabs.length-1;else return;event.preventDefault();view(tabs[next].dataset.view);tabs[next].focus();});
+$('status').setAttribute('aria-live','polite');document.querySelectorAll('[role=tab]').forEach(t=>t.tabIndex=t.getAttribute('aria-selected')==='true'?0:-1);
+const image=$('dialog-image'),viewport=el('div',undefined,'chart-viewport');image.before(viewport);viewport.append(image);const full=el('a','Open full size');full.id='open-full-size';full.target='_blank';full.rel='noopener';$('dialog-download').after(full);
+let zoom=1,panX=0,panY=0,points=new Map(),lastDistance=0;
+function applyChartZoom(){image.style.transform=`translate(${panX}px,${panY}px) scale(${zoom})`;}
+function resetChartZoom(){zoom=1;panX=panY=0;points.clear();applyChartZoom();}
+viewport.addEventListener('dblclick',()=>{zoom=zoom===1?2:1;panX=panY=0;applyChartZoom();});
+viewport.addEventListener('pointerdown',e=>{viewport.setPointerCapture(e.pointerId);points.set(e.pointerId,[e.clientX,e.clientY]);lastDistance=0;});
+viewport.addEventListener('pointermove',e=>{if(!points.has(e.pointerId))return;const old=points.get(e.pointerId);points.set(e.pointerId,[e.clientX,e.clientY]);if(points.size===2){const [a,b]=[...points.values()];const dist=Math.hypot(a[0]-b[0],a[1]-b[1]);if(lastDistance)zoom=Math.max(1,Math.min(6,zoom*dist/lastDistance));lastDistance=dist;}else if(zoom>1){panX+=e.clientX-old[0];panY+=e.clientY-old[1];}applyChartZoom();});
+for(const event of ['pointerup','pointercancel'])viewport.addEventListener(event,e=>{points.delete(e.pointerId);lastDistance=0;});
+if(matchMedia('(max-width: 800px)').matches)setSettingsCollapsed(true);
+
+const optional=$('pp-service').parentElement;optional.classList.add('optional-input');const optHeading=el('h3','Optional safety-stock buffer');optional.prepend(optHeading);document.querySelector('.pp-grid').after(optional);
+const catalogSearch=el('input');catalogSearch.type='search';catalogSearch.placeholder='Search table names';catalogSearch.setAttribute('aria-label','Search table names');catalogSearch.oninput=()=>{state.catalogSearch=catalogSearch.value.trim().toLowerCase();if(state.result)renderTableCatalog(state.result);};$('tables').querySelector('.result-heading').after(catalogSearch);
+const sortable=el('details');sortable.id='sortable-viewer';sortable.append(el('summary','Search rows, sort columns and download CSV'));for(const id of ['table-controls','table-context','table-glossary','results-table','table-pages']){const x=$(id)||document.querySelector('.'+id);if(x)sortable.append(x);}$('tables').append(sortable);
+$('table-category-pills').addEventListener('click',()=>{if(state.result)renderTableCatalog(state.result);});

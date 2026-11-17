@@ -556,6 +556,13 @@
   <div id="dialog-methods" class="method-buttons" role="group" aria-label="Select forecasting method in dialog"></div>
   <div id="dialog-interpretation" class="interpretation-box dialog-interp"></div>
 </dialog>
-<script src="app.js" defer></script>
+<!-- Load in order: shared setup, data, charts, reports, tables, runtime, presentation. -->
+<script src="js/interface/01-setup-and-navigation.js" defer></script>
+<script src="js/data/02-data-input-and-editing.js" defer></script>
+<script src="js/charts/03-charts-and-gallery.js" defer></script>
+<script src="js/reports/04-forecast-report-and-inventory.js" defer></script>
+<script src="js/tables/05-tables.js" defer></script>
+<script src="js/runtime/06-run-engine.js" defer></script>
+<script src="js/interface/07-presentation-and-accessibility.js" defer></script>
 <script src="v2.js" defer></script>
 </body></html>
